@@ -7,23 +7,22 @@ import {
 
 // Importing necessary modules from Umi to interact with Solana
 import {
-  generateSigner, // Function to generate a new signer for the collection mint (unique identifiers for NFTs)
-  keypairIdentity, // Handles wallet authentication
+  generateSigner, // Function to generate a new signer for the collection mint (unique identifiers for NFTs) 
   percentAmount,
-  PublicKey,
-  signerIdentity,
+  PublicKey as UmiPublicKey,
   Umi, 
 } from "@metaplex-foundation/umi";
 
 import { createUmi } from "@metaplex-foundation/umi-bundle-defaults"; // Creates a Umi instance for Solana
+import { walletAdapterIdentity } from '@metaplex-foundation/umi-signer-wallet-adapters';
+
 import {
   Connection, // Establishes connection to Solana network
   LAMPORTS_PER_SOL, // Represents the smallest unit of SOL (1 SOL = 1e9 lamports)
   clusterApiUrl
 } from "@solana/web3.js"; // Provides access to Solana's API and network clusters
-import {
-  getKeypairFromFile
-} from "@solana-developers/helpers"; // Helper functions for Solana development and wallet management
+
+import { WalletContextState, useWallet } from '@solana/wallet-adapter-react';
 
 // Interface for collection creation parameters 
 export interface CreateCollectionParams {
@@ -32,7 +31,7 @@ export interface CreateCollectionParams {
   metadataUri: string;
 }
 
-async function waitForDigitalAsset(umi: Umi , mintAddress: PublicKey, retries = 5, delayMs = 5000) {
+async function waitForDigitalAsset(umi: Umi , mintAddress: UmiPublicKey, retries = 5, delayMs = 5000) {
   for (let i = 0; i < retries; i++) {
     try {
       const asset = await fetchDigitalAsset(umi, mintAddress);
@@ -46,28 +45,30 @@ async function waitForDigitalAsset(umi: Umi , mintAddress: PublicKey, retries = 
 }
 
 
-async function createCollection(params: CreateCollectionParams) {
+async function createCollection(wallet: WalletContextState, params: CreateCollectionParams) {
   try {
+
+    if (!wallet.connected || !wallet.publicKey || !wallet.signTransaction) {
+      throw new Error("Wallet not connected  or missing required capabilities !!!.");
+    }
+
+  
     // Set up connection to Solana devnet
     const connection = new Connection(clusterApiUrl("devnet"));
-
-    // Get the user's wallet keypair from a file
-    const user = await getKeypairFromFile("/home/velleigr-phat/my-keypair.json");
-    // show the wallet address
-    console.log("Using wallet address:", user.publicKey.toBase58());
+    console.log("Using wallet address:", wallet.publicKey.toBase58());
 
     /*
     Check and airdrop SOL (for devnet testing) 
     Get the current balance of the user's wallet 
     */
 
-    const balance = await connection.getBalance(user.publicKey);
+    const balance = await connection.getBalance(wallet.publicKey);
     // Compare the balance with the required amount (0.5 SOL)
     if (balance < 0.5 * LAMPORTS_PER_SOL) {
       console.log("Airdropping 1 SOL...");
       // Request 1 SOL from devnet faucet
       const signature = await connection.requestAirdrop(
-        user.publicKey,
+        wallet.publicKey,
         LAMPORTS_PER_SOL
       );
       //wait for the transaction to be confirmed
@@ -87,13 +88,7 @@ async function createCollection(params: CreateCollectionParams) {
 
     //create the new umi instance which will comunicate with the Solana blockchain
     const umi = createUmi(connection.rpcEndpoint);
-
-    // create the new identity in Umi with the secret key from user by calling the eddsa interface
-    const umiUser = umi.eddsa.createKeypairFromSecretKey(user.secretKey);
-
-    // This tells Umi "these transactions should be signed by this user"
-    umi.use(keypairIdentity(umiUser));
-
+    umi.use(walletAdapterIdentity(wallet));
     // This adds NFT-specific functionality to Umi
     umi.use(mplTokenMetadata());
 
@@ -103,7 +98,7 @@ async function createCollection(params: CreateCollectionParams) {
     // Generate a new signer (new unique identifier) for the collection
     const collectionMint = generateSigner(umi);
 
-
+    
     // Create the collection NFT
     
     const transaction = createNft(umi, {
@@ -162,6 +157,7 @@ export default  createCollection ;
 
 // // Example usage
 // async function main() {
+
 //   const collectionParams: CreateCollectionParams = {
 //     name: "Coca",
 //     symbol: "Coa",

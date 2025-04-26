@@ -9,8 +9,14 @@
     "@metaplex-foundation/mpl-token-metadata": "^3.4.0",
     "@metaplex-foundation/umi": "^1.2.0",
     "@metaplex-foundation/umi-bundle-defaults": "^1.2.0",
+    "@metaplex-foundation/umi-signer-wallet-adapters": "^1.2.0",
     "@solana-developers/helpers": "^2.8.1",
-    "@solana/web3.js": "^1.98.1"
+    "@solana/wallet-adapter-base": "^0.9.26",
+    "@solana/wallet-adapter-react": "^0.15.38",
+    "@solana/wallet-adapter-react-ui": "^0.9.38",
+    "@solana/wallet-adapter-wallets": "^0.19.36",
+    "@solana/web3.js": "1",
+    "react": "^19.1.0"
   },
   "devDependencies": {
     "@types/bn.js": "^5.1.0",

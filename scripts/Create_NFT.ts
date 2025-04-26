@@ -27,6 +27,8 @@ import {
   getExplorerLink
 } from "@solana-developers/helpers"; // Helper functions for Solana development and wallet management
 
+import { WalletContextState} from '@solana/wallet-adapter-react';
+import { walletAdapterIdentity } from '@metaplex-foundation/umi-signer-wallet-adapters';
 
 // Interface for collection creation parameters 
 export interface CreateNFTParams {
@@ -50,28 +52,32 @@ async function waitForDigitalAsset(umi: Umi , mintAddress: PublicKey, retries = 
 }
 
 
-async function createNFT(params: CreateNFTParams) {
+async function createNFT(wallet: WalletContextState, params: CreateNFTParams) {
   try {
+
+
+    if (!wallet.connected || !wallet.publicKey || !wallet.signTransaction) {
+      throw new Error("Wallet not connected  or missing required capabilities !!!.");
+    }
+
+
     // Set up connection to Solana devnet
     const connection = new Connection(clusterApiUrl("devnet"));
-
-    // Get the user's wallet keypair from a file
-    const user = await getKeypairFromFile("/home/velleigr-phat/my-keypair.json");
     // show the wallet address
-    console.log("Using wallet address:", user.publicKey.toBase58());
+    console.log("Using wallet address:", wallet.publicKey.toBase58());
 
     /*
     Check and airdrop SOL (for devnet testing) 
     Get the current balance of the user's wallet 
     */
 
-    const balance = await connection.getBalance(user.publicKey);
+    const balance = await connection.getBalance(wallet.publicKey);
     // Compare the balance with the required amount (0.5 SOL)
     if (balance < 0.5 * LAMPORTS_PER_SOL) {
       console.log("Airdropping 1 SOL...");
       // Request 1 SOL from devnet faucet
       const signature = await connection.requestAirdrop(
-        user.publicKey,
+        wallet.publicKey,
         LAMPORTS_PER_SOL
       );
       //wait for the transaction to be confirmed
@@ -92,11 +98,11 @@ async function createNFT(params: CreateNFTParams) {
     //create the new umi instance which will comunicate with the Solana blockchain
     const umi = createUmi(connection.rpcEndpoint);
 
-    // create the new identity in Umi with the secret key from user by calling the eddsa interface
-    const umiUser = umi.eddsa.createKeypairFromSecretKey(user.secretKey);
+    // // create the new identity in Umi with the secret key from user by calling the eddsa interface
+    //const umiUser = umi.eddsa.createKeypairFromSecretKey(wallet.secretKey);
 
     // This tells Umi "these transactions should be signed by this user"
-    umi.use(keypairIdentity(umiUser));
+    umi.use(walletAdapterIdentity(wallet));
 
     // This adds NFT-specific functionality to Umi
     umi.use(mplTokenMetadata());
@@ -119,7 +125,7 @@ async function createNFT(params: CreateNFTParams) {
       collection: {
         key: params.collectionMint, // The address of the collection this NFT belongs to
         verified: false // Will be verified in a separate transaction
-      }, 
+      },
     });
 
     //Send and confirm the transaction
